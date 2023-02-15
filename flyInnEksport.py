@@ -8,6 +8,7 @@ import re
 valgt_layout = arcpy.GetParameterAsText(0)
 gruppelag = arcpy.GetParameterAsText(1)
 eksport_folder = arcpy.GetParameterAsText(2)
+dpi = int(arcpy.GetParameterAsText(2))
 
 # Henter grunnvariabler
 gis = arcpy.mp.ArcGISProject("CURRENT")
@@ -53,7 +54,7 @@ def eksporterLagvis(nr, aktivt_lag, lagliste, layout):
 
     filnavn = os.path.join(eksport_folder,"{}_{}_{}".format(slugify(layout.name), slugify(gruppelag), (nr+1)))
     # layout.exportToPDF(filnavn)
-    layout.exportToPNG(filnavn, resolution=300, transparent_background=True)
+    layout.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
     arcpy.AddMessage("-- Ferdig med å skrive ut kart {}".format(aktivt_lag.name))
 
 # Slå av temalag og skrive ut bare bakgrunnskart
@@ -61,7 +62,7 @@ for x in flyinn_lag: x.visible = False
 for x in ikke_temalag: x.visible = True
 
 filnavn = os.path.join(eksport_folder, "{}_{}_uten_temalag".format(slugify(gis.metadata.title), slugify(ly.name)))
-ly.exportToPNG(filnavn, resolution=300, transparent_background=True)
+ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
 
 # Itererer over lagene i gruppelaget over temalag, og eksporterer disse
 for nr,lag in enumerate(flyinn_lag):
@@ -75,5 +76,5 @@ for x in mp.listLayers(): x.visible = True
 
 filnavn = os.path.join(eksport_folder, "{}_{}".format(slugify(gis.metadata.title), slugify(ly.name)))
 # ly.exportToPDF(filnavn)
-ly.exportToPNG(filnavn, resolution=300, transparent_background=True)
+ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
 
