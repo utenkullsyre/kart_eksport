@@ -50,4 +50,5 @@ class ToolValidator:
         # added to the display.
         self.params[0].value = []
         self.params[0].filter.list = []
+        # print tests
         return
