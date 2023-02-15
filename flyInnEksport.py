@@ -1,7 +1,7 @@
 import arcpy
 import os
 import unicodedata
-import numpy as py
+import numpy as np
 import re
 
 # Henter input fra bruker
@@ -23,8 +23,8 @@ mp = gis.activeMap
 # Deklarerer variabler som skal brukes
 ly = gis.listLayouts(valgt_layout)[0]
 flyinn_gruppelag = mp.listLayers(gruppelag)[0]
-flyinn_lag = flyinn_gruppelag.listLayers()
-ikke_temalag = test = [item for item in mp.listLayers() if item not in flyinn_lag and item.isGroupLayer != True] # Fjerner temalag og gruppelag fra den komplette laglista
+flyinn_lag = [x for x in flyinn_gruppelag.listLayers() if x.visible == True]
+bakgrunnslag = [item for item in mp.listLayers() if item not in flyinn_lag and item.isGroupLayer != True] # Fjerner temalag og gruppelag fra den komplette laglista
 
 # Funksjon for å rense navn som skal brukes inn i filnavn
 def slugify(value, allow_unicode=True):
@@ -45,7 +45,7 @@ def slugify(value, allow_unicode=True):
 
 # Funksjon for å skur av og på lag som er aktiv og ikke aktiv, eksporterer deretter kartet uten bakgrunnskart
 def eksporterLagvis(nr, aktivt_lag, lagliste, layout):
-    for x in ikke_temalag: x.visible = False # Skrur av lag som ikke er temalag
+    for x in bakgrunnslag: x.visible = False # Skrur av lag som ikke er temalag
     for row in lagliste:
         if row != aktivt_lag:
             row.visible = False
@@ -57,9 +57,28 @@ def eksporterLagvis(nr, aktivt_lag, lagliste, layout):
     layout.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
     arcpy.AddMessage("-- Ferdig med å skrive ut kart {}".format(aktivt_lag.name))
 
+
+def renskeBakgrunnskart(temalag):
+    ikke_synlige = []
+    alle_lag = mp.listLayers()
+    ikkesynlige_gruppelag = [x for x in alle_lag if x.isGroupLayer == True and x.visible != True]
+
+    for gruppelag in ikkesynlige_gruppelag:
+        for lyr in gruppelag.listLayers():
+            ikke_synlige.append(lyr)
+
+    for lag in [x for x in alle_lag if x.visible != True]:
+        ikke_synlige.append(lag)
+    print(ikke_synlige)
+
+    bakgrunn = np.subtract(np.array(alle_lag), np.array(ikke_synlige))
+
+    return ikke_synlige
+
+
 # Slå av temalag og skrive ut bare bakgrunnskart
 for x in flyinn_lag: x.visible = False
-for x in ikke_temalag: x.visible = True
+for x in bakgrunnslag: x.visible = True
 
 filnavn = os.path.join(eksport_folder, "{}_{}_uten_temalag".format(slugify(gis.metadata.title), slugify(ly.name)))
 ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
