@@ -8,7 +8,7 @@ import re
 valgt_layout = arcpy.GetParameterAsText(0)
 gruppelag = arcpy.GetParameterAsText(1)
 eksport_folder = arcpy.GetParameterAsText(2)
-dpi = int(arcpy.GetParameterAsText(2))
+dpi = int(arcpy.GetParameterAsText(3))
 
 # Henter grunnvariabler
 gis = arcpy.mp.ArcGISProject("CURRENT")
@@ -22,9 +22,11 @@ mp = gis.activeMap
 
 # Deklarerer variabler som skal brukes
 ly = gis.listLayouts(valgt_layout)[0]
+synlige_lag = [x for x in mp.listLayers() if x.visible == True]
 flyinn_gruppelag = mp.listLayers(gruppelag)[0]
 flyinn_lag = [x for x in flyinn_gruppelag.listLayers() if x.visible == True]
-bakgrunnslag = [item for item in mp.listLayers() if item not in flyinn_lag and item.isGroupLayer != True] # Fjerner temalag og gruppelag fra den komplette laglista
+# synlige_bakgrunnslag = [item for item in mp.listLayers() if item not in flyinn_lag and item.isGroupLayer != True] # Fjerner temalag og gruppelag fra den komplette laglista
+synlige_bakgrunnslag = list(filter(lambda i: i not in flyinn_lag and i != flyinn_gruppelag, synlige_lag))
 
 # Funksjon for å rense navn som skal brukes inn i filnavn
 def slugify(value, allow_unicode=True):
@@ -45,7 +47,7 @@ def slugify(value, allow_unicode=True):
 
 # Funksjon for å skur av og på lag som er aktiv og ikke aktiv, eksporterer deretter kartet uten bakgrunnskart
 def eksporterLagvis(nr, aktivt_lag, lagliste, layout):
-    for x in bakgrunnslag: x.visible = False # Skrur av lag som ikke er temalag
+    for x in synlige_bakgrunnslag: x.visible = False # Skrur av lag som ikke er temalag
     for row in lagliste:
         if row != aktivt_lag:
             row.visible = False
@@ -75,25 +77,41 @@ def renskeBakgrunnskart(temalag):
 
     return ikke_synlige
 
+def resetKart(synlige_lag):
+    for row in mp.listLayers():
+        if row in synlige_lag:
+            row.visible = True
+        else:
+            row.visible = False
 
-# Slå av temalag og skrive ut bare bakgrunnskart
-for x in flyinn_lag: x.visible = False
-for x in bakgrunnslag: x.visible = True
+try:
+    # Slå av temalag og skrive ut bare bakgrunnskart
+    arcpy.AddMessage("\n-------------------------------------------\n Skriver ut bakgrunnskart uten temalag")
+    for x in flyinn_lag: x.visible = False
+    for x in synlige_bakgrunnslag: x.visible = True
 
-filnavn = os.path.join(eksport_folder, "{}_{}_uten_temalag".format(slugify(gis.metadata.title), slugify(ly.name)))
-ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
+    filnavn = os.path.join(eksport_folder, "{}_{}_bakgrunn".format(slugify(gis.metadata.title), slugify(ly.name)))
+    ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
 
-# Itererer over lagene i gruppelaget over temalag, og eksporterer disse
-for nr,lag in enumerate(flyinn_lag):
-    arcpy.AddMessage("\n-------------------------------------------\n- Prøver å skrive ut lag {}".format(lag.name))
-    eksporterLagvis(nr, lag, flyinn_lag, ly)
+    # Itererer over lagene i gruppelaget over temalag, og eksporterer disse
+    for nr, lag in enumerate(flyinn_lag):
+        arcpy.AddMessage("\n-------------------------------------------\n- Prøver å skrive ut lag {}".format(lag.name))
+        eksporterLagvis(nr, lag, flyinn_lag, ly)
 
-arcpy.AddMessage("\nEksportert alle lag enkeltvis, eksporterer et kart me alle lag aktiv")
+    arcpy.AddMessage("\nEksportert alle lag enkeltvis, eksporterer et kart me alle lag aktiv")
 
-# Gjør alle lag synlige før siste eksport
-for x in mp.listLayers(): x.visible = True
+    # Gjør alle lag synlige før siste eksport
+    resetKart(synlige_lag)
+    filnavn = os.path.join(eksport_folder, "{}_{}_alle_lag".format(slugify(gis.metadata.title), slugify(ly.name)))
+    # ly.exportToPDF(filnavn)
+    ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
 
-filnavn = os.path.join(eksport_folder, "{}_{}".format(slugify(gis.metadata.title), slugify(ly.name)))
-# ly.exportToPDF(filnavn)
-ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
+except:
+    arcpy.AddMessage("Noe gikk galt, prøv igjen.")
+
+finally:
+    resetKart(synlige_lag)
+    arcpy.AddMessage("Scriptet er ferdig med å kjøre")
+
+
 
