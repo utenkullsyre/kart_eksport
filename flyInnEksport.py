@@ -1,7 +1,6 @@
 import arcpy
 import os
 import unicodedata
-import numpy as np
 import re
 
 # Henter input fra bruker
@@ -21,12 +20,11 @@ mp = gis.activeMap
 # arcpy.AddMessage("\n Prøver å eksportere layout:\n{} - {} - {}".format(valgt_layout, gruppelag, eksport_folder))
 
 # Deklarerer variabler som skal brukes
-ly = gis.listLayouts(valgt_layout)[0]
-synlige_lag = [x for x in mp.listLayers() if x.visible == True]
-flyinn_gruppelag = mp.listLayers(gruppelag)[0]
-flyinn_lag = [x for x in flyinn_gruppelag.listLayers() if x.visible == True]
-# synlige_bakgrunnslag = [item for item in mp.listLayers() if item not in flyinn_lag and item.isGroupLayer != True] # Fjerner temalag og gruppelag fra den komplette laglista
-synlige_bakgrunnslag = list(filter(lambda i: i not in flyinn_lag and i != flyinn_gruppelag, synlige_lag))
+ly = gis.listLayouts(valgt_layout)[0]   # Henter ut layout som er valgt
+synlige_lag = [x for x in mp.listLayers() if x.visible == True]    # Henter ut alle synlige lag
+flyinn_gruppelag = mp.listLayers(gruppelag)[0]  # Henter ut valgt gruppelag som inneholder temadata
+flyinn_lag = [x for x in flyinn_gruppelag.listLayers() if x.visible == True] # Henter ut enkeltlag fra gruppelag som er synlige
+synlige_bakgrunnslag = list(filter(lambda i: i not in flyinn_lag and i != flyinn_gruppelag, synlige_lag)) # Henter ut synlige bakgrunnslag. filter-funksjon for å ta ut temalag lager dette til en liste
 
 # Funksjon for å rense navn som skal brukes inn i filnavn
 def slugify(value, allow_unicode=True):
@@ -47,36 +45,19 @@ def slugify(value, allow_unicode=True):
 
 # Funksjon for å skur av og på lag som er aktiv og ikke aktiv, eksporterer deretter kartet uten bakgrunnskart
 def eksporterLagvis(nr, aktivt_lag, lagliste, layout):
-    for x in synlige_bakgrunnslag: x.visible = False # Skrur av lag som ikke er temalag
+    for x in synlige_bakgrunnslag: x.visible = False    # Skrur av lag som ikke er temalag
     for row in lagliste:
         if row != aktivt_lag:
             row.visible = False
         elif row == aktivt_lag:
             row.visible = True
 
-    filnavn = os.path.join(eksport_folder,"{}_{}_{}".format(slugify(layout.name), slugify(gruppelag), (nr+1)))
+    filnavn = os.path.join(eksport_folder,"{}_{}_{}".format((nr+1), slugify(layout.name), slugify(gruppelag)))
     # layout.exportToPDF(filnavn)
     layout.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
     arcpy.AddMessage("-- Ferdig med å skrive ut kart {}".format(aktivt_lag.name))
 
-
-def renskeBakgrunnskart(temalag):
-    ikke_synlige = []
-    alle_lag = mp.listLayers()
-    ikkesynlige_gruppelag = [x for x in alle_lag if x.isGroupLayer == True and x.visible != True]
-
-    for gruppelag in ikkesynlige_gruppelag:
-        for lyr in gruppelag.listLayers():
-            ikke_synlige.append(lyr)
-
-    for lag in [x for x in alle_lag if x.visible != True]:
-        ikke_synlige.append(lag)
-    print(ikke_synlige)
-
-    bakgrunn = np.subtract(np.array(alle_lag), np.array(ikke_synlige))
-
-    return ikke_synlige
-
+# Funksjon for å tilbakestille kart til opprinnelig tilstand
 def resetKart(synlige_lag):
     for row in mp.listLayers():
         if row in synlige_lag:
@@ -84,13 +65,14 @@ def resetKart(synlige_lag):
         else:
             row.visible = False
 
+# Try / catch / finally for å passe på at kartet ikke blir rotet til om noe krasjer
 try:
     # Slå av temalag og skrive ut bare bakgrunnskart
     arcpy.AddMessage("\n-------------------------------------------\n Skriver ut bakgrunnskart uten temalag")
     for x in flyinn_lag: x.visible = False
     for x in synlige_bakgrunnslag: x.visible = True
 
-    filnavn = os.path.join(eksport_folder, "{}_{}_bakgrunn".format(slugify(gis.metadata.title), slugify(ly.name)))
+    filnavn = os.path.join(eksport_folder, "0_{}_{}_bakgrunn".format(slugify(gis.metadata.title), slugify(ly.name)))
     ly.exportToPNG(filnavn, resolution=dpi, transparent_background=True)
 
     # Itererer over lagene i gruppelaget over temalag, og eksporterer disse
